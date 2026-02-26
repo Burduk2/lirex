@@ -1,7 +1,0 @@
-compile {
-  "<%",
-  whitespace 0+,
-  capture "insides" { anyChar 0+ },
-  whitespace 0+,
-  "%>"
-}
