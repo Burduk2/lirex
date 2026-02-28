@@ -6,10 +6,6 @@ import (
 	"strings"
 )
 
-func (n ComponentNode) compile(ctx *CompileContext) (string, error) {
-	return compileNodes(n.nodes, ctx)
-}
-
 func compileNodes(nodes []Node, ctx *CompileContext) (string, error) {
 	var b strings.Builder
 	for _, child := range nodes {
@@ -21,17 +17,16 @@ func compileNodes(nodes []Node, ctx *CompileContext) (string, error) {
 	}
 	return b.String(), nil
 }
-func compileCapturableNodes(captNodes []Capturable, ctx *CompileContext) (string, error) {
-	nodes := make([]Node, len(captNodes))
-	for i, child := range captNodes {
+func toRegularNodes[T Node](irrNodes []T) []Node {
+	nodes := make([]Node, len(irrNodes))
+	for i, child := range irrNodes {
 		nodes[i] = child
 	}
-	return compileNodes(nodes, ctx)
+	return nodes
 }
 
-func (n ExprNode) compile(ctx *CompileContext) (string, error) {
-	result, err := n.node.compile(ctx)
-	return result, err
+func (n SeqNode) compile(ctx *CompileContext) (string, error) {
+	return compileNodes(n.nodes, ctx)
 }
 
 func (node LitNode) compile(ctx *CompileContext) (string, error) {
@@ -59,29 +54,41 @@ func compileLit(str string, isForCharClass bool) string {
 	}
 	return literal
 }
-func (node MetaCharNode) compile(ctx *CompileContext) (string, error) {
-	return node.value, nil
+func (n MetaCharNode) compile(ctx *CompileContext) (string, error) {
+	return n.value, nil
 }
-func (node RawNode) compile(ctx *CompileContext) (string, error) {
-	_, err := regexp.Compile(node.value)
-	return node.value, err
+func (n RuneCharNode) compile(ctx *CompileContext) (string, error) {
+	return n.value, nil
+}
+func (n RawNode) compile(ctx *CompileContext) (string, error) {
+	val := n.value
+	_, err := regexp.Compile(val)
+	return val, err
 }
 
 func (node GroupNode) compile(ctx *CompileContext) (string, error) {
-	childrenCompiled, err := compileNodes(node.children, ctx)
+	children := node.children
+	if len(children) == 0 {
+		return "", nil
+	}
+	childrenCompiled, err := compileNodes(children, ctx)
 	return "(?:" + childrenCompiled + ")", err
 }
 
 func (node CaptureNode) compile(ctx *CompileContext) (string, error) {
+	children := node.children
+	if len(children) == 0 {
+		return "", nil
+	}
 	expr := Exp(
 		LineStart,
-		Or(LowerLatin, UpperLatin),
-		CharClass(WordChar).ZeroOrMore(),
+		Latin,
+		WordChar.ZeroOrMore(),
 		LineEnd,
-	).MustBuild(Options{})
+	).MustCompile(Options{})
 
 	name := node.name
-	if !regexp.MustCompile(expr).MatchString(name) {
+	if !expr.MatchString(name) {
 		return "", fmt.Errorf("Capture: invalid name for capture group '%s'", name)
 	}
 	if _, exists := ctx.groupNames[name]; exists {
@@ -89,13 +96,17 @@ func (node CaptureNode) compile(ctx *CompileContext) (string, error) {
 	}
 	ctx.groupNames[name] = struct{}{}
 
-	childrenCompiled, err := compileCapturableNodes(node.children, ctx)
+	childrenCompiled, err := compileNodes(toRegularNodes(children), ctx)
 	return "(?P<" + name + ">" + childrenCompiled + ")", err
 }
 
 func (node OrNode) compile(ctx *CompileContext) (string, error) {
+	children := node.children
+	if len(children) == 0 {
+		return "", nil
+	}
 	result := []string{}
-	for _, child := range node.children {
+	for _, child := range children {
 		compiled, err := child.compile(ctx)
 		if err != nil {
 			return "", err
@@ -106,21 +117,19 @@ func (node OrNode) compile(ctx *CompileContext) (string, error) {
 }
 
 func (node CharClassNode) compile(ctx *CompileContext) (string, error) {
-	result := ""
-	for _, child := range node.children {
-		if _, ok := child.node.(CharClassable); !ok {
-			return "", fmt.Errorf("CharClass: child of type %T cannot be put in CharClass", child.node)
-		}
+	children := node.children
+	if len(children) == 0 {
+		return "", nil
+	}
+	var b strings.Builder
+	for _, child := range children {
 		compiled := ""
 		var err error = nil
-		switch n := child.node.(type) {
+		switch n := child.(type) {
 		case LitNode:
 			compiled = compileLit(n.value, true)
-		case MetaCharNode:
+		case RuneCharNode:
 			val := n.value
-			if !n.charClassable {
-				return "", fmt.Errorf("CharClass: child of type %T('%s') cannot be put in CharClass", child.node, val)
-			}
 			if val[0] == '[' {
 				compiled = val[1 : len(val)-1]
 			} else {
@@ -132,9 +141,10 @@ func (node CharClassNode) compile(ctx *CompileContext) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		result += compiled
+		b.WriteString(compiled)
 	}
 
+	result := b.String()
 	negation := ""
 	if node.negate {
 		negation = "^"
@@ -145,6 +155,10 @@ func (node CharClassNode) compile(ctx *CompileContext) (string, error) {
 }
 
 func (node AtLeastRepeatNode) compile(ctx *CompileContext) (string, error) {
+	childCompiled, err := node.child.compile(ctx)
+	if childCompiled == "" {
+		return "", nil
+	}
 	q := ""
 	switch num := node.num; num {
 	case 0:
@@ -154,16 +168,22 @@ func (node AtLeastRepeatNode) compile(ctx *CompileContext) (string, error) {
 	default:
 		q = fmt.Sprintf("{%d,}", num)
 	}
-	childCompiled, err := node.child.compile(ctx)
 	return childCompiled + q, err
 }
 func (node ExactlyRepeatNode) compile(ctx *CompileContext) (string, error) {
 	childCompiled, err := node.child.compile(ctx)
-	return childCompiled + fmt.Sprintf("{%d}", node.num), err
+	if childCompiled == "" {
+		return "", nil
+	}
+	num := node.num
+	if num == 0 {
+		return "", nil
+	}
+	return childCompiled + fmt.Sprintf("{%d}", num), err
 }
 func (node BetweenRepeatNode) compile(ctx *CompileContext) (string, error) {
 	childCompiled, err := node.child.compile(ctx)
-	if err != nil {
+	if childCompiled == "" || err != nil {
 		return "", err
 	}
 
@@ -175,11 +195,13 @@ func (node BetweenRepeatNode) compile(ctx *CompileContext) (string, error) {
 		}
 		q = "?"
 	} else if min == max {
-		num := min
 		if ctx.showWarnings {
-			fmt.Printf("WARNING: .Between(%d, %d) => Could use .Exactly(%d) instead.\n", num, num, num)
+			fmt.Printf("WARNING: .Between(%d, %d) => Could use .Exactly(%d) instead.\n", min, min, min)
 		}
-		q = fmt.Sprintf("{%d}", num)
+		if min == 0 {
+			return "", nil
+		}
+		q = fmt.Sprintf("{%d}", min)
 	} else if min > max {
 		return "", fmt.Errorf("Between repeat: min > max")
 	} else {
@@ -188,7 +210,10 @@ func (node BetweenRepeatNode) compile(ctx *CompileContext) (string, error) {
 
 	return childCompiled + q, nil
 }
-func (node OptionaRepeatNode) compile(ctx *CompileContext) (string, error) {
+func (node OptionalRepeatNode) compile(ctx *CompileContext) (string, error) {
 	childCompiled, err := node.child.compile(ctx)
+	if childCompiled == "" {
+		return "", nil
+	}
 	return childCompiled + "?", err
 }
