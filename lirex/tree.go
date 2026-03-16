@@ -1,12 +1,15 @@
 package lirex
 
 import (
+	"fmt"
+	"reflect"
 	"regexp"
+	"strings"
 )
 
-type ExpTree []Node
+type ExpTreeNode []Node
 
-func Exp(nodes ...Node) ExpTree {
+func Exp(nodes ...Node) ExpTreeNode {
 	return nodes
 }
 
@@ -18,13 +21,16 @@ type Options struct {
 	// (?s)
 	DotMatchesNewline bool
 	ShowWarnings      bool
+	AllowRedundant    bool
 }
 type CompileContext struct {
-	groupNames   map[string]struct{}
-	showWarnings bool
+	groupNames     map[string]struct{}
+	helpersUsed    map[string]struct{}
+	showWarnings   bool
+	allowRedundant bool
 }
 
-func (tree ExpTree) Compile(opts Options) (*regexp.Regexp, error) {
+func (tree ExpTreeNode) Compile(opts Options) (*regexp.Regexp, error) {
 	mode := ""
 	if opts.CaseInsensitive {
 		mode += "i"
@@ -39,14 +45,22 @@ func (tree ExpTree) Compile(opts Options) (*regexp.Regexp, error) {
 		mode = "(?" + mode + ")"
 	}
 
-	ctx := &CompileContext{groupNames: make(map[string]struct{}), showWarnings: opts.ShowWarnings}
+	ctx := &CompileContext{
+		groupNames:     make(map[string]struct{}),
+		helpersUsed:    make(map[string]struct{}),
+		showWarnings:   opts.ShowWarnings,
+		allowRedundant: opts.AllowRedundant,
+	}
 	result, err := compileNodes(tree, ctx)
 	if err != nil {
 		return nil, err
 	}
+	if result == "" {
+		return nil, fmt.Errorf("Lirex Compile: Expression resolved to empty string.")
+	}
 	return regexp.Compile(mode + result)
 }
-func (tree ExpTree) MustCompile(opts Options) *regexp.Regexp {
+func (tree ExpTreeNode) MustCompile(opts Options) *regexp.Regexp {
 	result, err := tree.Compile(opts)
 	if err != nil {
 		panic(err)
@@ -54,8 +68,33 @@ func (tree ExpTree) MustCompile(opts Options) *regexp.Regexp {
 	return result
 }
 
-func (tree ExpTree) Explain() {
+func yellow(s string) string {
+	return "\033[33m" + s + "\033[0m"
+}
+func red(s string) string {
+	return "\033[31m" + s + "\033[0m"
+}
+func green(s string) string {
+	return "\033[32m" + s + "\033[0m"
+}
+func bold(s string) string {
+	return "\033[1m" + s + "\033[0m"
+}
+func (tree ExpTreeNode) Explain() {
+	ctx := &CompileContext{groupNames: make(map[string]struct{}), showWarnings: true}
 
+	var b strings.Builder
+	for _, child := range tree {
+		t := reflect.TypeOf(child)
+		prefix := t.String()
+		compiled, err := child.compile(ctx)
+		if err != nil {
+			compiled = red("Failed to compile: " + err.Error())
+		}
+		fmt.Println(compiled)
+		b.WriteString(prefix + ": " + bold(compiled) + "\n")
+	}
+	fmt.Println(b.String())
 }
 
 func FindCaptures(re *regexp.Regexp, str string) (map[string][]string, bool) {

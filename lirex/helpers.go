@@ -1,49 +1,62 @@
 package lirex
 
+type HelperNode struct {
+	name       string
+	groupNames []string
+	value      string
+}
 type helpersMap struct {
-	Domain             CaptureNode
-	Email              CaptureNode
-	InternationalPhone CaptureNode
-	CreditCard         CaptureNode
-	FullUrl            CaptureNode
+	Domain             HelperNode
+	Email              HelperNode
+	InternationalPhone HelperNode
+	CreditCard         HelperNode
+	FullUrl            HelperNode
+}
+
+func compile(node Node, groups ...string) HelperNode {
+	return HelperNode{
+		value:      Exp(node).MustCompile(Options{}).String(),
+		name:       groups[0],
+		groupNames: groups,
+	}
 }
 
 var Helpers = helpersMap{
-	Domain:             domain(),
-	Email:              email(),
-	InternationalPhone: phone(),
-	CreditCard:         creditCard(),
-	FullUrl:            url(),
+	Domain:             compile(domain(true), "Domain"),
+	Email:              compile(email(), "Email", "Email_localPart", "Email_domain"),
+	InternationalPhone: compile(phone(), "Phone", "Phone_countryCode", "Phone_areaCode"),
+	CreditCard:         compile(creditCard(), "CreditCard"),
+	FullUrl:            compile(url(), "FullUrl"),
 }
 
-func domain() CaptureNode {
-	return Capture("Domain",
-		Or(
+func domain(capture bool) Node {
+	exp := Seq(
+		LatinDigit,
+		Group(
+			CharClass(LatinDigit, Lit("-.")).ZeroOrMore(),
 			LatinDigit,
-			Group(
-				LatinDigit,
-				CharClass(LatinDigit, Lit("-.")).ZeroOrMore(),
-				LatinDigit,
-			),
-		),
+		).Optional(),
 		Lit("."),
 		LatinDigit.Between(1, 63),
 	)
+	if capture {
+		return Capture("Domain", exp)
+	}
+	return Group(exp)
 }
 func email() CaptureNode {
 	return Capture("Email",
 		Capture("Email_localPart",
-			Or(
+			Group(
 				CharClass(WordChar, Lit("%+")),
 				Group(
-					CharClass(WordChar, Lit("%+")),
 					CharClass(WordChar, Lit(".%+-")).ZeroOrMore(),
 					CharClass(WordChar, Lit("%+-")),
-				),
+				).Optional(),
 			).Between(1, 64),
 		),
 		Lit("@"),
-		Capture("Email_domain", domain()),
+		Capture("Email_domain", domain(false)),
 	)
 }
 func phone() CaptureNode {
@@ -71,12 +84,25 @@ func creditCard() CaptureNode {
 }
 func url() CaptureNode {
 	return Capture("FullUrl",
-		Capture("FullUrl_protocol", Or(Lit("http"), Lit("https"), Lit("ftp"))),
+		Latin,
+		CharClass(LatinDigit, Lit("+-.")).ZeroOrMore(),
 		Lit("://"),
-		Capture("FullUrl_domain", domain()),
-		Group(Lit(":"), Capture("Url_port", Digit.AtLeast(1))).Optional(),
-		Capture("FullUrl_path", Group(Lit("/"), CharClass(WordChar, Lit("%/-._~")).ZeroOrMore()).Optional()),
-		Capture("FullUrl_query", Group(Lit("?"), CharClass(WordChar, Lit("=&%+-._~")).ZeroOrMore()).Optional()),
-		Capture("FullUrl_fragment", Group(Lit("#"), CharClass(WordChar, Lit("%-._~")).ZeroOrMore()).Optional()),
+		domain(false),
+		Group(Lit(":"), Digit.AtLeast(1)).Optional(),
+		Group(Lit("/"), CharClass(WordChar, Lit("%/-._~")).ZeroOrMore()).Optional(),
+		Group(Lit("?"), CharClass(WordChar, Lit("=&%+-._~")).ZeroOrMore()).Optional(),
+		Group(Lit("#"), CharClass(WordChar, Lit("%-._~")).ZeroOrMore()).Optional(),
 	)
+}
+
+var ReservedGroupNames = map[string]struct{}{
+	"Domain":            {},
+	"Email":             {},
+	"Email_localPart":   {},
+	"Email_domain":      {},
+	"Phone":             {},
+	"Phone_countryCode": {},
+	"Phone_areaCode":    {},
+	"CreditCard":        {},
+	"FullUrl":           {},
 }

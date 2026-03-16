@@ -3,6 +3,9 @@ package lirex
 func (n SeqNode) explain() string {
 	return ""
 }
+func (n HelperNode) explain() string {
+	return ""
+}
 
 func (node LitNode) explain() string {
 	return ""

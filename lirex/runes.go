@@ -19,17 +19,17 @@ var (
 	// Regex equivalent: (\r\n|\n|\r)
 	LineBreak = RuneCharNode{value: `(\r\n|\n|\r)`}
 	// Regex equivalent: ' '
-	Space = RuneCharNode{value: ` `}
+	// Space = RuneCharNode{value: ` `}
 	// Regex equivalent: \p{Z} => includes: all Unicode space separators (space, non-breaking space, thin space, ideographic space)
-	SpaceSeparator = RuneCharNode{value: `\p{Z}`}
+	// SpaceSeparator = RuneCharNode{value: `\p{Z}`}
 
-	// Regex equivalent: [a-z] => includes: all lowercase Latin letters
+	// Regex equivalent: [a-z]
 	LowerLatin = RuneCharNode{value: `[a-z]`}
-	// Regex equivalent: [A-Z] => includes: all uppercase Latin letters
+	// Regex equivalent: [A-Z]
 	UpperLatin = RuneCharNode{value: `[A-Z]`}
-	// Regex equivalent: [a-zA-Z] => includes: all Latin letters
+	// Regex equivalent: [a-zA-Z]
 	Latin = RuneCharNode{value: `[a-zA-Z]`}
-	// Regex equivalent: [a-zA-Z0-9] => includes: all Latin letters or digits
+	// Regex equivalent: [a-zA-Z0-9]
 	LatinDigit = RuneCharNode{value: `[a-zA-Z0-9]`}
 	// Regex equivalent: \p{Latin} => includes: all Latin script letters, including extended letters like ä, ö, ü, ß, ñ, ç, and accented characters
 	ExtendedLatin = RuneCharNode{value: `\p{Latin}`}
@@ -50,17 +50,17 @@ var (
 	// Regex equivalent: \p{Han} => includes: all CJK ideographs (Chinese, Japanese, Korean)
 	Han = RuneCharNode{value: `\p{Han}`}
 	// Regex equivalent: [\p{L}\p{N}\p{P}\p{S}] => includes: all printable characters
-	Printable = RuneCharNode{value: `[\p{L}\p{N}\p{P}\p{S}]`}
+	// Printable = RuneCharNode{value: `[\p{L}\p{N}\p{P}\p{S}]`}
 
 	// Regex equivalent: \p{Nd} => includes: all Unicode decimal digits (0–9 and other script digits)
-	DigitUnicode = RuneCharNode{value: `\p{Nd}`}
+	AnyDecimal = RuneCharNode{value: `\p{Nd}`}
 	// Regex equivalent: \p{N} => includes: all Unicode numeric characters (digits, Roman numerals, fractions, superscripts)
-	Numeric = RuneCharNode{value: `\p{N}`}
+	NumberLike = RuneCharNode{value: `\p{N}`}
 	// Regex equivalent: [0-9A-Fa-f] => includes: all hexadecimal digits
 	HexDigit = RuneCharNode{value: `[0-9A-Fa-f]`}
-	// Regex equivalent: \d => includes: all ASCII digits
+	// Regex equivalent: \d => includes: [0-9]
 	Digit = RuneCharNode{value: `\d`}
-	// Regex equivalent: \D => excludes: all characters that are ASCII digits
+	// Regex equivalent: \D => excludes: [0-9]
 	NonDigit = RuneCharNode{value: `\D`}
 
 	// Regex equivalent: \p{P} => includes: all Unicode punctuation (.,!?'"()[]{}-—«»… etc.)
