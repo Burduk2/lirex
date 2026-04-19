@@ -29,6 +29,9 @@ type CompileContext struct {
 	showWarnings   bool
 	allowRedundant bool
 }
+type ExplainContext struct {
+	indent uint
+}
 
 func (tree ExpTreeNode) Compile(opts Options) (*regexp.Regexp, error) {
 	mode := ""
@@ -80,7 +83,7 @@ func green(s string) string {
 func bold(s string) string {
 	return "\033[1m" + s + "\033[0m"
 }
-func (tree ExpTreeNode) Explain() {
+func (tree ExpTreeNode) Explain(opts Options) {
 	ctx := &CompileContext{groupNames: make(map[string]struct{}), showWarnings: true}
 
 	var b strings.Builder
@@ -94,6 +97,19 @@ func (tree ExpTreeNode) Explain() {
 		fmt.Println(compiled)
 		b.WriteString(prefix + ": " + bold(compiled) + "\n")
 	}
+
+	// ctx := &CompileContext{
+	// 	groupNames:     make(map[string]struct{}),
+	// 	helpersUsed:    make(map[string]struct{}),
+	// 	showWarnings:   opts.ShowWarnings,
+	// 	allowRedundant: opts.AllowRedundant,
+	// }
+	result, err := compileNodes(tree, ctx)
+	if err != nil {
+	}
+	if result == "" {
+	}
+	// return regexp.Compile(mode + result)
 	fmt.Println(b.String())
 }
 

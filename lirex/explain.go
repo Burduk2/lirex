@@ -1,5 +1,8 @@
 package lirex
 
+type ExplainedNode struct {
+}
+
 func (n SeqNode) explain() string {
 	return ""
 }
@@ -35,7 +38,6 @@ func (node CaptureNode) explain() string {
 
 func (node OrNode) explain() string {
 	return ""
-
 }
 
 func (node CharClassNode) explain() string {
